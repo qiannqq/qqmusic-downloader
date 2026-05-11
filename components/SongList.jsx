@@ -23,6 +23,19 @@ export default function SongList({ songs, onSongsChange, selectedSongs, onSelect
     }
   };
 
+  const toggleInvertSelection = () => {
+    const allMids = songs.map(s => s.mid);
+    const inverted = allMids.filter(mid => !selectedSongs.includes(mid));
+    onSelectionChange(inverted);
+  };
+
+  const handleBatchDelete = () => {
+    if (confirm(`确定删除选中的 ${selectedSongs.length} 首歌曲吗？`)) {
+      onSongsChange(songs.filter(s => !selectedSongs.includes(s.mid)));
+      onSelectionChange([]);
+    }
+  };
+
   const toggleSelect = (mid) => {
     if (selectedSongs.includes(mid)) {
       onSelectionChange(selectedSongs.filter(id => id !== mid));

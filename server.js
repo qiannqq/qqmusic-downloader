@@ -423,7 +423,7 @@ server.get('/api/download', async (req, res) => {
 });
 
 // 所有非 API 请求交给 Next.js 处理
-server.all('*', (req, res) => {
+server.use((req, res) => {
   return handle(req, res);
 });
 
