@@ -132,7 +132,10 @@ async function getQQMusic(req) {
 }
 
 // Cookie 状态接口（不暴露 Cookie 值，但返回调试信息）
-app.get('/cookie-status', (req, res) => {
+app.get('/cookie-status', async (req, res) => {
+  // 确保已验证（触发一次验证）
+  await ensureValidated();
+
   const cookie = getServerCookie();
 
   // 检测当前使用的配置方式
@@ -140,25 +143,28 @@ app.get('/cookie-status', (req, res) => {
   const hasFields = !!(process.env.QM_UIN || process.env.QM_QQMUSIC_KEY);
   const configSource = hasLegacy ? 'legacy' : (hasFields ? 'fields' : 'none');
 
+  // Cookie 存在即算 hasServerCookie，isValid 表示验证是否通过
+  const hasCookie = !!cookie;
+
   res.json({
     code: 0,
     data: {
-      hasServerCookie: serverCookieStatus.hasCookie,
+      hasServerCookie: hasCookie,
       isValid: serverCookieStatus.isValid,
       needClientCookie: !serverCookieStatus.isValid,
       configSource,
       // 调试信息
       debug: {
-        envVarSet: !!cookie,
+        envVarSet: hasCookie,
         cookieLength: cookie.length,
         checkedAt: serverCookieStatus.checkedAt,
         errorMsg: serverCookieStatus.errorMsg,
         // 显示已配置的环境变量（不包含值）
         configuredVars: Object.keys(process.env).filter(k => k.startsWith('QM_')),
         // 使用提示
-        hint: cookie.length === 0
+        hint: !hasCookie
           ? '请配置环境变量: QM_UIN, QM_QQMUSIC_KEY 等（参考 .env.example）'
-          : undefined
+          : (!serverCookieStatus.isValid ? `验证未通过: ${serverCookieStatus.errorMsg}` : undefined)
       }
     }
   });
