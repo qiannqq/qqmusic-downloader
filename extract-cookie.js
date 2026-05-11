@@ -40,8 +40,7 @@ const FIELDS = {
   'wxunionid': {
     required: true,
     category: '登录类型',
-    description: '微信unionid（微信登录标记）',
-    aliases: ['psrf_qqunionid']
+    description: '微信unionid（微信登录标记）'
   },
   'psrf_qqunionid': {
     required: true,
@@ -125,16 +124,22 @@ function findFieldValue(map, fieldName) {
   const field = FIELDS[fieldName];
   if (!field) return null;
 
-  // 检查主字段
-  if (map.has(fieldName) && map.get(fieldName) !== '') {
-    return { key: fieldName, value: map.get(fieldName) };
+  // 检查主字段（值不能为空）
+  if (map.has(fieldName)) {
+    const value = map.get(fieldName);
+    if (value !== '' && value !== undefined && value !== null) {
+      return { key: fieldName, value };
+    }
   }
 
   // 检查别名
   if (field.aliases) {
     for (const alias of field.aliases) {
-      if (map.has(alias) && map.get(alias) !== '') {
-        return { key: alias, value: map.get(alias) };
+      if (map.has(alias)) {
+        const value = map.get(alias);
+        if (value !== '' && value !== undefined && value !== null) {
+          return { key: alias, value };
+        }
       }
     }
   }
@@ -177,11 +182,20 @@ function analyzeCookie(cookieStr) {
 
 function formatCookieOutput(map, foundKeys) {
   const parts = [];
+  const seenValues = new Set(); // 用于去重相同值
+
   for (const key of foundKeys) {
     const result = findFieldValue(map, key);
-    if (result) {
-      parts.push(`${result.key}=${result.value}`);
+    if (!result) continue;
+
+    // 如果值已经出现过（如 qqmusic_key 和 qm_keyst 相同），跳过
+    const valueKey = `${result.key}=${result.value}`;
+    if (seenValues.has(result.value)) {
+      continue;
     }
+    seenValues.add(result.value);
+
+    parts.push(valueKey);
   }
   return parts.join(';');
 }
@@ -268,9 +282,9 @@ function main() {
     }
   }
 
-  // 输出精简版 Cookie
+  // 输出精简版 Cookie（旧格式）
   console.log('\n' + '='.repeat(60));
-  console.log('📝 精简版 Cookie（仅关键字段）:');
+  console.log('📝 精简版 Cookie（旧格式）:');
   console.log('='.repeat(60));
 
   const essentialKeys = [
@@ -284,6 +298,46 @@ function main() {
 
   const compactCookie = formatCookieOutput(parseCookie(cookieStr), essentialKeys);
   console.log(compactCookie);
+
+  // 输出逐字段环境变量格式（推荐）
+  console.log('\n' + '='.repeat(60));
+  console.log('📝 逐字段环境变量（推荐，复制到 Pages 控制台）:');
+  console.log('='.repeat(60));
+
+  const fieldMap = parseCookie(cookieStr);
+  const envVars = [];
+
+  // 核心字段
+  const uinVal = findFieldValue(fieldMap, 'uin') || findFieldValue(fieldMap, 'wxuin');
+  const unionidVal = findFieldValue(fieldMap, 'psrf_qqunionid') || findFieldValue(fieldMap, 'wxunionid');
+  const tmeLoginType = fieldMap.get('tmeLoginType');
+  const musicKeyVal = findFieldValue(fieldMap, 'qqmusic_key') || findFieldValue(fieldMap, 'qm_keyst');
+
+  if (uinVal) envVars.push(`QM_UIN=${uinVal.value}`);
+  if (unionidVal) envVars.push(`QM_QQUNIONID=${unionidVal.value}`);
+  if (tmeLoginType) envVars.push(`QM_TMELOGINTYPE=${tmeLoginType}`);
+  if (musicKeyVal) envVars.push(`QM_QQMUSIC_KEY=${musicKeyVal.value}`);
+
+  // Token 字段
+  const accessToken = fieldMap.get('psrf_qqaccess_token');
+  const openid = fieldMap.get('psrf_qqopenid');
+  const refreshToken = fieldMap.get('psrf_qqrefresh_token');
+  const expiresAt = fieldMap.get('psrf_access_token_expiresAt');
+
+  if (accessToken) envVars.push(`QM_ACCESS_TOKEN=${accessToken}`);
+  if (openid) envVars.push(`QM_OPENID=${openid}`);
+  if (refreshToken) envVars.push(`QM_REFRESH_TOKEN=${refreshToken}`);
+  if (expiresAt) envVars.push(`QM_EXPIRES_AT=${expiresAt}`);
+
+  // 辅助字段
+  const euin = fieldMap.get('euin');
+  const createTime = fieldMap.get('psrf_musickey_createtime');
+
+  if (euin) envVars.push(`QM_EUIN=${euin}`);
+  if (createTime) envVars.push(`QM_MUSICKEY_CREATETIME=${createTime}`);
+
+  console.log(envVars.join('\n'));
+  console.log(`\n共 ${envVars.length} 个环境变量`);
 
   // 验证是否可用
   console.log('\n' + '='.repeat(60));

@@ -5,27 +5,62 @@ const app = express();
 
 app.use(express.json());
 
-// 运行时读取环境变量（支持 Cloud Functions 动态注入）
-// 支持 base64 编码（避免环境变量中的空格/换行限制）
+// 从逐字段环境变量组装 Cookie
+// 支持的字段：QM_UIN, QM_QQUNIONID, QM_TMELOGINTYPE, QM_QQMUSIC_KEY, 
+//             QM_ACCESS_TOKEN, QM_OPENID, QM_REFRESH_TOKEN, QM_EXPIRES_AT
 function getServerCookie() {
-  const raw = process.env.QM_COOKIES || '';
-  if (!raw) return '';
-
-  // 检测是否为 base64 编码（只包含 base64 字符且长度合理）
-  const isBase64 = /^[A-Za-z0-9+/=]+$/.test(raw) && raw.length % 4 === 0 && raw.length > 20;
-
-  if (isBase64) {
-    try {
-      const decoded = Buffer.from(raw, 'base64').toString('utf-8');
-      console.log('[Cookie] 检测到 base64 编码，已解码');
-      return decoded;
-    } catch (e) {
-      console.log('[Cookie] base64 解码失败，按原字符串处理');
-      return raw;
-    }
+  // 向后兼容：如果配置了 QM_COOKIES，优先使用旧格式
+  const legacyCookie = process.env.QM_COOKIES || '';
+  if (legacyCookie) {
+    return legacyCookie;
   }
 
-  return raw;
+  const fields = [];
+
+  // 核心字段
+  const uin = process.env.QM_UIN || '';
+  const unionid = process.env.QM_QQUNIONID || '';
+  const loginType = process.env.QM_TMELOGINTYPE || '';
+  const musicKey = process.env.QM_QQMUSIC_KEY || '';
+
+  if (!uin || !musicKey) {
+    return '';
+  }
+
+  fields.push(`uin=${uin}`);
+
+  if (unionid) {
+    fields.push(`psrf_qqunionid=${unionid}`);
+  }
+
+  if (loginType) {
+    fields.push(`tmeLoginType=${loginType}`);
+  }
+
+  fields.push(`qqmusic_key=${musicKey}`);
+
+  // 兼容字段：qm_keyst 与 qqmusic_key 相同
+  fields.push(`qm_keyst=${musicKey}`);
+
+  // Token 字段（可选）
+  const accessToken = process.env.QM_ACCESS_TOKEN || '';
+  const openid = process.env.QM_OPENID || '';
+  const refreshToken = process.env.QM_REFRESH_TOKEN || '';
+  const expiresAt = process.env.QM_EXPIRES_AT || '';
+
+  if (accessToken) fields.push(`psrf_qqaccess_token=${accessToken}`);
+  if (openid) fields.push(`psrf_qqopenid=${openid}`);
+  if (refreshToken) fields.push(`psrf_qqrefresh_token=${refreshToken}`);
+  if (expiresAt) fields.push(`psrf_access_token_expiresAt=${expiresAt}`);
+
+  // 辅助字段
+  const euin = process.env.QM_EUIN || '';
+  const createTime = process.env.QM_MUSICKEY_CREATETIME || '';
+
+  if (euin) fields.push(`euin=${euin}`);
+  if (createTime) fields.push(`psrf_musickey_createtime=${createTime}`);
+
+  return fields.join(';');
 }
 
 // 服务端 Cookie 验证状态
@@ -40,15 +75,17 @@ let serverCookieStatus = {
 // 验证服务端 Cookie
 async function validateServerCookie() {
   const cookie = getServerCookie();
+  const envKeys = Object.keys(process.env).filter(k => k.startsWith('QM_'));
   console.log('[Cookie] 环境变量读取结果:', {
     hasValue: !!cookie,
     length: cookie.length,
-    envKeys: Object.keys(process.env).filter(k => k.includes('COOKIE') || k.includes('cookie'))
+    envKeys,
+    source: envKeys.length > 0 ? '逐字段' : (process.env.QM_COOKIES ? '旧格式' : '未配置')
   });
 
   if (!cookie) {
-    serverCookieStatus = { hasCookie: false, isValid: false, checkedAt: new Date(), cookieLength: 0, errorMsg: '环境变量 QM_COOKIES 未设置' };
-    console.log('[Cookie] 未配置 QM_COOKIES 环境变量');
+    serverCookieStatus = { hasCookie: false, isValid: false, checkedAt: new Date(), cookieLength: 0, errorMsg: '环境变量未设置，请配置 QM_UIN 和 QM_QQMUSIC_KEY' };
+    console.log('[Cookie] 未配置环境变量');
     return;
   }
 
@@ -82,20 +119,31 @@ function getQQMusic(req) {
 // Cookie 状态接口（不暴露 Cookie 值，但返回调试信息）
 app.get('/cookie-status', (req, res) => {
   const cookie = getServerCookie();
+
+  // 检测当前使用的配置方式
+  const hasLegacy = !!process.env.QM_COOKIES;
+  const hasFields = !!(process.env.QM_UIN || process.env.QM_QQMUSIC_KEY);
+  const configSource = hasLegacy ? 'legacy' : (hasFields ? 'fields' : 'none');
+
   res.json({
     code: 0,
     data: {
       hasServerCookie: serverCookieStatus.hasCookie,
       isValid: serverCookieStatus.isValid,
       needClientCookie: !serverCookieStatus.isValid,
+      configSource,
       // 调试信息
       debug: {
         envVarSet: !!cookie,
         cookieLength: cookie.length,
         checkedAt: serverCookieStatus.checkedAt,
         errorMsg: serverCookieStatus.errorMsg,
-        // 提示：腾讯云 Pages 环境变量值限制 500 字节
-        hint: cookie.length === 0 ? '请在平台重新部署以生效环境变量，或检查变量值是否超过 500 字节限制' : undefined
+        // 显示已配置的环境变量（不包含值）
+        configuredVars: Object.keys(process.env).filter(k => k.startsWith('QM_')),
+        // 使用提示
+        hint: cookie.length === 0
+          ? '请配置环境变量: QM_UIN, QM_QQMUSIC_KEY 等（参考 .env.example）'
+          : undefined
       }
     }
   });
