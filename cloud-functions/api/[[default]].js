@@ -49,7 +49,7 @@ function getQQMusic(req) {
 }
 
 // Cookie 状态接口（不暴露 Cookie 值）
-app.get('/api/cookie-status', (req, res) => {
+app.get('/cookie-status', (req, res) => {
   res.json({
     code: 0,
     data: {
@@ -60,7 +60,7 @@ app.get('/api/cookie-status', (req, res) => {
   });
 });
 
-app.get('/api/search', async (req, res) => {
+app.get('/search', async (req, res) => {
   try {
     const { keyword, page = 1, pageSize = 20 } = req.query;
     if (!keyword) {
@@ -74,7 +74,7 @@ app.get('/api/search', async (req, res) => {
   }
 });
 
-app.post('/api/song/url', async (req, res) => {
+app.post('/song/url', async (req, res) => {
   try {
     const { mid, highQuality = 'false' } = req.query;
     if (!mid) {
@@ -94,7 +94,7 @@ app.post('/api/song/url', async (req, res) => {
   }
 });
 
-app.post('/api/song/batch-url', async (req, res) => {
+app.post('/song/batch-url', async (req, res) => {
   try {
     const { songs, highQuality = false } = req.body;
     if (!Array.isArray(songs) || songs.length === 0) {
@@ -117,7 +117,7 @@ app.post('/api/song/batch-url', async (req, res) => {
   }
 });
 
-app.get('/api/song/detail', async (req, res) => {
+app.get('/song/detail', async (req, res) => {
   try {
     const { mid } = req.query;
     if (!mid) {
@@ -135,7 +135,7 @@ app.get('/api/song/detail', async (req, res) => {
   }
 });
 
-app.get('/api/song/lyric', async (req, res) => {
+app.get('/song/lyric', async (req, res) => {
   try {
     const { mid } = req.query;
     if (!mid) {
@@ -149,7 +149,7 @@ app.get('/api/song/lyric', async (req, res) => {
   }
 });
 
-app.get('/api/playlist', async (req, res) => {
+app.get('/playlist', async (req, res) => {
   try {
     const { id } = req.query;
     if (!id) {
@@ -205,7 +205,7 @@ app.get('/api/playlist', async (req, res) => {
   }
 });
 
-app.post('/api/parse-url', async (req, res) => {
+app.post('/parse-url', async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) {
@@ -230,7 +230,7 @@ app.post('/api/parse-url', async (req, res) => {
   }
 });
 
-app.post('/api/song/download', async (req, res) => {
+app.post('/song/download', async (req, res) => {
   try {
     const { song, filename } = req.body;
     console.log('[download] 收到请求, mid:', song?.mid, '文件名:', filename);
@@ -299,7 +299,7 @@ app.post('/api/song/download', async (req, res) => {
 });
 
 // 图片代理接口
-app.get('/api/proxy/image', async (req, res) => {
+app.get('/proxy/image', async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) {
@@ -332,7 +332,7 @@ app.get('/api/proxy/image', async (req, res) => {
 });
 
 // 音频代理接口（用于试听）
-app.get('/api/proxy/audio', async (req, res) => {
+app.get('/proxy/audio', async (req, res) => {
   try {
     const { url } = req.query;
     if (!url) {
@@ -395,7 +395,7 @@ app.get('/api/proxy/audio', async (req, res) => {
 });
 
 // 旧版下载代理（兼容）
-app.get('/api/download', async (req, res) => {
+app.get('/download', async (req, res) => {
   try {
     const { url, filename } = req.query;
     console.log('[download proxy] 收到请求, URL:', url);
