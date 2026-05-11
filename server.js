@@ -9,6 +9,14 @@ const __dirname = path.dirname(__filename);
 
 const dev = process.env.NODE_ENV !== 'production';
 const PORT = process.env.PORT || 3000;
+const QM_COOKIES = process.env.QM_COOKIES || '';
+
+// 服务端 Cookie 验证状态
+let serverCookieStatus = {
+  hasCookie: false,
+  isValid: false,
+  checkedAt: null
+};
 
 const app = next({ dev, dir: __dirname });
 const handle = app.getRequestHandler();
@@ -17,8 +25,33 @@ const server = express();
 
 server.use(express.json());
 
+// 验证服务端 Cookie
+async function validateServerCookie() {
+  if (!QM_COOKIES) {
+    serverCookieStatus = { hasCookie: false, isValid: false, checkedAt: new Date() };
+    console.log('[Cookie] 未配置 QM_COOKIES 环境变量');
+    return;
+  }
+
+  try {
+    const qqMusic = new QQMusic({ cookie: QM_COOKIES });
+    const results = await qqMusic.search('周杰伦', 1, 5);
+    if (results && results.length > 0) {
+      serverCookieStatus = { hasCookie: true, isValid: true, checkedAt: new Date() };
+      console.log('[Cookie] 服务端 Cookie 验证通过 ✓');
+    } else {
+      serverCookieStatus = { hasCookie: true, isValid: false, checkedAt: new Date() };
+      console.log('[Cookie] 服务端 Cookie 验证失败：搜索无结果');
+    }
+  } catch (error) {
+    serverCookieStatus = { hasCookie: true, isValid: false, checkedAt: new Date() };
+    console.log('[Cookie] 服务端 Cookie 验证失败：', error.message);
+  }
+}
+
 function getQQMusic(req) {
-  const cookie = req.headers['x-qqmusic-cookie'] || '';
+  // 优先使用有效的服务端 Cookie
+  const cookie = (serverCookieStatus.isValid ? QM_COOKIES : '') || req.headers['x-qqmusic-cookie'] || '';
   return new QQMusic({
     cookie,
     highQuality: req.query.highQuality === 'true'
@@ -427,7 +460,23 @@ server.use((req, res) => {
   return handle(req, res);
 });
 
-app.prepare().then(() => {
+// Cookie 状态接口（不暴露 Cookie 值）
+server.get('/api/cookie-status', (req, res) => {
+  res.json({
+    code: 0,
+    data: {
+      hasServerCookie: serverCookieStatus.hasCookie,
+      isValid: serverCookieStatus.isValid,
+      // 如果服务端 Cookie 有效，前端不需要填写
+      needClientCookie: !serverCookieStatus.isValid
+    }
+  });
+});
+
+app.prepare().then(async () => {
+  // 启动时验证服务端 Cookie
+  await validateServerCookie();
+
   server.listen(PORT, (err) => {
     if (err) throw err;
     console.log(`> Ready on http://localhost:${PORT}`);

@@ -11,6 +11,12 @@ export function AppProvider({ children }) {
   const [currentSong, setCurrentSong] = useState(null);
   const [stats, setStats] = useState({ downloaded: 0 });
   const [highQuality, setHighQuality] = useState(true);
+  const [serverCookieStatus, setServerCookieStatus] = useState({
+    hasServerCookie: false,
+    isValid: false,
+    needClientCookie: true,
+    loading: true
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('qqmusic_downloaded_count');
@@ -25,6 +31,24 @@ export function AppProvider({ children }) {
         console.error('Failed to parse saved songs', e);
       }
     }
+
+    // 检测服务端 Cookie 状态
+    fetch('/api/cookie-status')
+      .then(res => res.json())
+      .then(data => {
+        if (data.code === 0) {
+          setServerCookieStatus({
+            hasServerCookie: data.data.hasServerCookie,
+            isValid: data.data.isValid,
+            needClientCookie: data.data.needClientCookie,
+            loading: false
+          });
+        }
+      })
+      .catch(err => {
+        console.error('Failed to check server cookie status:', err);
+        setServerCookieStatus(prev => ({ ...prev, loading: false }));
+      });
   }, []);
 
   useEffect(() => {
@@ -104,6 +128,7 @@ export function AppProvider({ children }) {
       currentSong, setCurrentSong,
       stats, setStats,
       highQuality, setHighQuality: setHighQualityPersist,
+      serverCookieStatus,
       handleAddToList,
       handleImport,
       incrementDownload,

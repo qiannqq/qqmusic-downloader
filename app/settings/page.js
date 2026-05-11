@@ -5,7 +5,7 @@ import { useApp } from '../../components/AppContext';
 import { Settings } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { highQuality, setHighQuality } = useApp();
+  const { highQuality, setHighQuality, serverCookieStatus } = useApp();
 
   return (
     <div className="page-container">
@@ -19,6 +19,7 @@ export default function SettingsPage() {
       <CookieManager
         highQuality={highQuality}
         onHighQualityChange={setHighQuality}
+        serverCookieStatus={serverCookieStatus}
       />
     </div>
   );
