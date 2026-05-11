@@ -72,10 +72,14 @@ let serverCookieStatus = {
   errorMsg: ''
 };
 
-// 验证服务端 Cookie
+// 是否已经尝试过验证
+let validationAttempted = false;
+
+// 验证服务端 Cookie（在请求时调用，确保环境变量已注入）
 async function validateServerCookie() {
   const cookie = getServerCookie();
   const envKeys = Object.keys(process.env).filter(k => k.startsWith('QM_'));
+
   console.log('[Cookie] 环境变量读取结果:', {
     hasValue: !!cookie,
     length: cookie.length,
@@ -105,7 +109,18 @@ async function validateServerCookie() {
   }
 }
 
-function getQQMusic(req) {
+// 延迟验证：在第一次请求时触发
+async function ensureValidated() {
+  if (!validationAttempted) {
+    validationAttempted = true;
+    await validateServerCookie();
+  }
+}
+
+async function getQQMusic(req) {
+  // 确保已验证（第一次请求时触发）
+  await ensureValidated();
+
   // 优先使用有效的服务端 Cookie
   const serverCookie = serverCookieStatus.isValid ? getServerCookie() : '';
   const clientCookie = req.headers['x-qqmusic-cookie'] || '';
@@ -155,7 +170,7 @@ app.get('/search', async (req, res) => {
     if (!keyword) {
       return res.status(400).json({ error: 'keyword 不能为空' });
     }
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     const list = await qqMusic.search(keyword, Number(page), Number(pageSize));
     res.json({ code: 0, data: list });
   } catch (error) {
@@ -169,7 +184,7 @@ app.post('/song/url', async (req, res) => {
     if (!mid) {
       return res.status(400).json({ error: 'mid 不能为空' });
     }
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     
     let songData = { mid, raw: {} };
     if (req.body && req.body.song) {
@@ -189,7 +204,7 @@ app.post('/song/batch-url', async (req, res) => {
     if (!Array.isArray(songs) || songs.length === 0) {
       return res.status(400).json({ error: 'songs 必须是数组且不能为空' });
     }
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     const results = await Promise.all(
       songs.map(async (song) => {
         try {
@@ -212,7 +227,7 @@ app.get('/song/detail', async (req, res) => {
     if (!mid) {
       return res.status(400).json({ error: 'mid 不能为空' });
     }
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     const song = await qqMusic.getFirstSong(mid, { pageSize: 1 });
     if (!song) {
       return res.status(404).json({ error: '歌曲不存在' });
@@ -230,7 +245,7 @@ app.get('/song/lyric', async (req, res) => {
     if (!mid) {
       return res.status(400).json({ error: 'mid 不能为空' });
     }
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     const lyric = await qqMusic.getLyric(mid);
     res.json({ code: 0, data: lyric });
   } catch (error) {
@@ -244,7 +259,7 @@ app.get('/playlist', async (req, res) => {
     if (!id) {
       return res.status(400).json({ error: '歌单 ID 不能为空' });
     }
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     const body = {
       comm: { uin: '0', authst: '', ct: 29 },
       req_0: {
@@ -328,7 +343,7 @@ app.post('/song/download', async (req, res) => {
       return res.status(400).json({ error: 'song.mid 不能为空' });
     }
 
-    const qqMusic = getQQMusic(req);
+    const qqMusic = await getQQMusic(req);
     
     console.log('[download] 正在获取 URL...');
     const playUrl = await qqMusic.getMusicUrl(song, { highQuality: true });
@@ -534,8 +549,5 @@ app.get('/download', async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
-
-// 初始化验证
-validateServerCookie().catch(console.error);
 
 export default app;
