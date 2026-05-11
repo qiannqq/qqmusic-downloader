@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { 
   Play, Pause, Download, Plus, Check, Loader2, 
-  Music, ExternalLink, Headphones
+  Music, ExternalLink, Headphones, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { api, downloadSong, getProxyImageUrl } from '../lib/api';
 
-export default function SearchResults({ results, onAddToList, songs, onDownload, onPlay }) {
+export default function SearchResults({ results, onAddToList, songs, onDownload, onPlay, searchKeyword, currentPage, onPageChange, loading }) {
   const [adding, setAdding] = useState({});
   const [previewing, setPreviewing] = useState(null);
 
@@ -163,6 +163,60 @@ export default function SearchResults({ results, onAddToList, songs, onDownload,
           </div>
         ))}
       </div>
+
+      {/* Pagination */}
+      {searchKeyword && (
+        <div style={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          gap: '16px',
+          marginTop: '32px',
+          marginBottom: '16px'
+        }}>
+          <button
+            className="btn-brutal"
+            onClick={() => onPageChange(currentPage - 1)}
+            disabled={loading || currentPage <= 1}
+            style={{ 
+              minWidth: '120px',
+              justifyContent: 'center',
+              padding: '12px 20px'
+            }}
+          >
+            <ChevronLeft size={16} style={{ marginRight: '6px' }} />
+            上一页
+          </button>
+
+          <span style={{
+            fontWeight: 700,
+            fontSize: '0.9rem',
+            minWidth: '60px',
+            textAlign: 'center',
+            letterSpacing: '1px'
+          }}>
+            第 {currentPage} 页
+          </span>
+
+          <button
+            className="btn-brutal"
+            onClick={() => onPageChange(currentPage + 1)}
+            disabled={loading}
+            style={{ 
+              minWidth: '120px',
+              justifyContent: 'center',
+              padding: '12px 20px'
+            }}
+          >
+            {loading ? (
+              <Loader2 size={16} className="spin" style={{ marginRight: '6px' }} />
+            ) : (
+              <ChevronRight size={16} style={{ marginRight: '6px' }} />
+            )}
+            {loading ? '加载中...' : '下一页'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

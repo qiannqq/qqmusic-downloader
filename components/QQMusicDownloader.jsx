@@ -25,6 +25,8 @@ export default function QQMusicDownloader() {
   const [showCookieDrawer, setShowCookieDrawer] = useState(false);
   const [showListDrawer, setShowListDrawer] = useState(false);
   const [keyword, setKeyword] = useState('');
+  const [searchKeyword, setSearchKeyword] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
   const [hasSearched, setHasSearched] = useState(false);
   const [highQuality, setHighQuality] = useState(true);
 
@@ -35,8 +37,10 @@ export default function QQMusicDownloader() {
     if (savedHQ) setHighQuality(savedHQ === 'true');
   }, []);
 
-  const handleSearch = (results) => {
+  const handleSearch = (results, kw, page = 1) => {
     setSearchResults(results);
+    setSearchKeyword(kw || '');
+    setCurrentPage(page);
     setHasSearched(true);
   };
 
@@ -70,6 +74,26 @@ export default function QQMusicDownloader() {
     setCurrentSong(song);
   };
 
+  const handlePageChange = async (newPage) => {
+    if (!searchKeyword || newPage < 1) return;
+    setLoading(true);
+    try {
+      const { api } = await import('../lib/api');
+      const res = await api.search(searchKeyword, newPage);
+      const newResults = res.data || [];
+      if (newResults.length > 0 || newPage === 1) {
+        setSearchResults(newResults);
+        setCurrentPage(newPage);
+      } else {
+        alert('已经是最后一页了');
+      }
+    } catch (error) {
+      alert('加载失败: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div ref={containerRef}>
       <CustomCursor />
@@ -78,7 +102,20 @@ export default function QQMusicDownloader() {
 
       {/* Top Bar with Search */}
       <header className="top-bar">
-        <div className="top-bar-logo">MUSIC</div>
+        <div
+          className="top-bar-logo"
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            setKeyword('');
+            setSearchResults([]);
+            setHasSearched(false);
+            setCurrentPage(1);
+            setSearchKeyword('');
+          }}
+          title="返回主页"
+        >
+          MUSIC
+        </div>
         
         <div className="top-bar-search">
           <SearchBar 
@@ -130,6 +167,10 @@ export default function QQMusicDownloader() {
             songs={songs}
             onDownload={incrementDownload}
             onPlay={handlePlay}
+            searchKeyword={searchKeyword}
+            currentPage={currentPage}
+            onPageChange={handlePageChange}
+            loading={loading}
           />
         </section>
 
@@ -222,7 +263,7 @@ function SearchBar({ keyword, setKeyword, onSearch, onImport, onLoading }) {
         } else { alert('歌曲不存在'); }
       } else {
         const res = await api.search(input);
-        onSearch?.(res.data || []);
+        onSearch?.(res.data || [], input, 1);
       }
     } catch (error) {
       alert('操作失败: ' + error.message);
