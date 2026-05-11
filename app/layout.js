@@ -1,4 +1,6 @@
 import './globals.css';
+import { AppProvider } from '../components/AppContext';
+import Navigation from '../components/Navigation';
 
 export const metadata = {
   title: 'QQ音乐下载器',
@@ -13,7 +15,12 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700;900&family=Orbitron:wght@400;500;700;900&display=swap" rel="stylesheet" />
       </head>
-      <body>{children}</body>
+      <body>
+        <AppProvider>
+          <Navigation />
+          {children}
+        </AppProvider>
+      </body>
     </html>
   );
 }
