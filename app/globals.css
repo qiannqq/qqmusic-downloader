@@ -147,6 +147,17 @@ html {
   to { opacity: 1; }
 }
 
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 /* ========== NOISE OVERLAY ========== */
 .noise-overlay {
   position: fixed;
@@ -867,7 +878,6 @@ html {
 
 .cookie-input {
   width: 100%;
-  height: 480px;
   padding: 16px;
   background: var(--bg-elevated);
   border: 3px solid var(--border);
