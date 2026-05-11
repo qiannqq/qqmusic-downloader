@@ -1,13 +1,14 @@
 {
   "name": "qqmusic-downloader",
-  "version": "1.0.0",
+  "version": "1.4.0",
   "description": "QQ音乐下载器 - Express + Next.js + React",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node server.js",
+    "dev": "next dev",
     "build": "next build",
-    "start": "node server.js",
+    "build:cf": "next build",
+    "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
