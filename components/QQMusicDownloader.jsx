@@ -13,9 +13,11 @@ import CookieManager from './CookieManager';
 import SearchResults from './SearchResults';
 import SongList from './SongList';
 import { useHoverScale } from '../hooks/useHoverScale';
+import { useApp } from './AppContext';
 
 export default function QQMusicDownloader() {
   const containerRef = useHoverScale(1.05);
+  const { serverCookieStatus } = useApp();
   const [songs, setSongs] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [selectedSongs, setSelectedSongs] = useState([]);
@@ -197,6 +199,7 @@ export default function QQMusicDownloader() {
             setHighQuality(v);
             localStorage.setItem('qqmusic_high_quality', v.toString());
           }}
+          serverCookieStatus={serverCookieStatus}
         />
       </Drawer>
 
