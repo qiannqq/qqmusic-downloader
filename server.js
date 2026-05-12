@@ -336,7 +336,7 @@ server.get('/api/proxy/image', async (req, res) => {
   }
 });
 
-// 音频代理接口（用于试听）
+// 音频代理接口（用于试听）- 使用 302 重定向避免云函数 6MB 限制
 server.get('/api/proxy/audio', async (req, res) => {
   try {
     const { url } = req.query;
@@ -350,9 +350,10 @@ server.get('/api/proxy/audio', async (req, res) => {
     // 优先使用有效的服务端 Cookie
     const cookie = (serverCookieStatus.isValid ? QM_COOKIES : '') || req.headers['x-qqmusic-cookie'] || '';
 
-    // 直接下载完整音频内容
-    console.log('[音频代理] 开始下载音频...');
+    // 使用 HEAD 请求验证音频 URL 是否有效
+    console.log('[音频代理] 验证音频 URL...');
     const response = await fetch(targetUrl, {
+      method: 'HEAD',
       headers: {
         'Referer': 'https://y.qq.com/',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -362,41 +363,16 @@ server.get('/api/proxy/audio', async (req, res) => {
     });
 
     if (!response.ok) {
-      console.error('[音频代理] 下载失败:', response.status);
+      console.error('[音频代理] URL 验证失败:', response.status);
       return res.status(response.status).send('获取音频失败');
     }
 
-    const contentType = response.headers.get('content-type') || 'audio/mpeg';
     const contentLength = response.headers.get('content-length');
-    
-    console.log('[音频代理] Content-Type:', contentType);
-    console.log('[音频代理] Content-Length:', contentLength);
+    console.log('[音频代理] URL 验证通过, Content-Length:', contentLength);
 
-    // 如果内容太小，可能是错误响应
-    if (contentLength && parseInt(contentLength) < 1000) {
-      console.log('[音频代理] 警告: 文件过小，可能不是有效音频');
-      const text = await response.text();
-      console.log('[音频代理] 响应内容:', text.substring(0, 200));
-      return res.status(500).send('音频文件无效');
-    }
-
-    // 设置响应头
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Accept-Ranges', 'none');
+    // 302 重定向到原始 URL，避免云函数 6MB 限制
     res.setHeader('Access-Control-Allow-Origin', '*');
-    if (contentLength) {
-      res.setHeader('Content-Length', contentLength);
-    }
-
-    // 流式传输音频数据
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
-    console.log('[音频代理] 传输完成');
+    return res.redirect(targetUrl);
 
   } catch (error) {
     console.error('[音频代理] 错误:', error);

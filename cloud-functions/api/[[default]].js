@@ -443,7 +443,7 @@ app.get('/proxy/image', async (req, res) => {
   }
 });
 
-// 音频代理接口（用于试听）
+// 音频代理接口（用于试听）- 使用 302 重定向避免云函数 6MB 限制
 app.get('/proxy/audio', async (req, res) => {
   try {
     const { url } = req.query;
@@ -459,8 +459,10 @@ app.get('/proxy/audio', async (req, res) => {
     const clientCookie = req.headers['x-qqmusic-cookie'] || '';
     const cookie = serverCookie || clientCookie;
 
-    console.log('[proxy audio] 开始下载音频...');
+    // 使用 HEAD 请求验证音频 URL 是否有效
+    console.log('[proxy audio] 验证音频 URL...');
     const response = await fetch(targetUrl, {
+      method: 'HEAD',
       headers: {
         'Referer': 'https://y.qq.com/',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -470,38 +472,16 @@ app.get('/proxy/audio', async (req, res) => {
     });
 
     if (!response.ok) {
-      console.error('[proxy audio] 下载失败:', response.status);
+      console.error('[proxy audio] URL 验证失败:', response.status);
       return res.status(response.status).send('获取音频失败');
     }
 
-    const contentType = response.headers.get('content-type') || 'audio/mpeg';
     const contentLength = response.headers.get('content-length');
-    
-    console.log('[proxy audio] Content-Type:', contentType);
-    console.log('[proxy audio] Content-Length:', contentLength);
+    console.log('[proxy audio] URL 验证通过, Content-Length:', contentLength);
 
-    if (contentLength && parseInt(contentLength) < 1000) {
-      console.log('[proxy audio] 警告: 文件过小，可能不是有效音频');
-      const text = await response.text();
-      console.log('[proxy audio] 响应内容:', text.substring(0, 200));
-      return res.status(500).send('音频文件无效');
-    }
-
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Accept-Ranges', 'none');
+    // 302 重定向到原始 URL，避免云函数 6MB 限制
     res.setHeader('Access-Control-Allow-Origin', '*');
-    if (contentLength) {
-      res.setHeader('Content-Length', contentLength);
-    }
-
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
-    console.log('[proxy audio] 传输完成');
+    return res.redirect(targetUrl);
 
   } catch (error) {
     console.error('[proxy audio] 错误:', error);

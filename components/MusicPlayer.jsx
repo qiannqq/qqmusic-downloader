@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Play, Pause, Volume2, VolumeX, X, Music } from 'lucide-react';
-import { getProxyImageUrl } from '../lib/api';
+import { Play, Pause, Volume2, VolumeX, X, Music, AlertCircle } from 'lucide-react';
+import { getProxyImageUrl, getProxyAudioUrl } from '../lib/api';
 
 export default function MusicPlayer({ currentSong, onClose }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -14,7 +14,7 @@ export default function MusicPlayer({ currentSong, onClose }) {
 
   useEffect(() => {
     if (currentSong?.url && audioRef.current) {
-      const proxyUrl = `/api/proxy/audio?url=${encodeURIComponent(currentSong.url)}`;
+      const proxyUrl = getProxyAudioUrl(currentSong.url);
       audioRef.current.src = proxyUrl;
       audioRef.current.load();
       setIsPlaying(false);
