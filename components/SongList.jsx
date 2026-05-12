@@ -7,6 +7,25 @@ import {
 } from 'lucide-react';
 import { api, downloadSong, getProxyImageUrl } from '../lib/api';
 
+function triggerDownload(url, filename) {
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function showDownloadError(message, song) {
+  const url = song.link || `https://y.qq.com/n/yqq/song/${song.mid}.html`;
+  const msg = `下载遇到问题：${message}\n\n可能原因：\n1. 文件过大（云函数限制 6MB）\n2. 当前 Cookie 已过期\n3. 该歌曲需要 VIP 权限\n\n您可以尝试：\n• 刷新页面后重试\n• 更新 Cookie 设置\n• 在 QQ 音乐网页版打开下载`;
+  
+  if (confirm(msg)) {
+    window.open(url, '_blank');
+  }
+}
+
 export default function SongList({ songs, onSongsChange, selectedSongs, onSelectionChange, onDownload, onPlay, highQuality }) {
   const [loadingLyric, setLoadingLyric] = useState(null);
   const [lyricData, setLyricData] = useState(null);
@@ -64,10 +83,13 @@ export default function SongList({ songs, onSongsChange, selectedSongs, onSelect
 
   const handleDownload = async (song) => {
     try {
-      downloadSong(song, `${song.name} - ${song.artist}.mp3`);
+      const { url } = await downloadSong(song, `${song.name} - ${song.artist}.mp3`);
+      if (url) {
+        triggerDownload(url, `${song.name} - ${song.artist}.mp3`);
+      }
       onDownload?.();
     } catch (err) {
-      alert('下载失败: ' + err.message);
+      showDownloadError(err.message, song);
     }
   };
 
@@ -103,6 +125,7 @@ export default function SongList({ songs, onSongsChange, selectedSongs, onSelect
       const urls = res.data;
       
       let successCount = 0;
+      let failCount = 0;
 
       for (let i = 0; i < urls.length; i++) {
         const item = urls[i];
@@ -110,20 +133,27 @@ export default function SongList({ songs, onSongsChange, selectedSongs, onSelect
 
         if (item.url) {
           try {
-            downloadSong(item, `${item.name} - ${item.artist}.mp3`);
+            triggerDownload(item.url, `${item.name} - ${item.artist}.mp3`);
             successCount++;
             onDownload?.();
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 800));
           } catch (err) {
             console.error('下载失败:', err);
+            failCount++;
           }
+        } else {
+          failCount++;
         }
       }
 
       if (successCount > 0) {
-        alert(`成功下载 ${successCount}/${selectedSongList.length} 首歌曲`);
+        if (failCount > 0) {
+          alert(`成功下载 ${successCount} 首，${failCount} 首失败\n\n失败原因可能是：\n• 文件过大（云函数限制 6MB）\n• Cookie 过期或需要 VIP`);
+        } else {
+          alert(`成功下载 ${successCount} 首歌曲`);
+        }
       } else {
-        alert('下载失败，请检查 Cookie 设置或选择其他歌曲');
+        alert('下载失败，请检查 Cookie 设置或选择其他歌曲\n\n可能原因：\n• 文件过大（云函数限制 6MB）\n• Cookie 已过期\n• 所选歌曲需要 VIP 权限');
       }
     } catch (err) {
       alert('批量下载失败: ' + err.message);

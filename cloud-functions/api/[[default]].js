@@ -360,53 +360,18 @@ app.post('/song/download', async (req, res) => {
     
     console.log('[download] 获取到 URL:', playUrl.substring(0, 200));
     
-    console.log('[download] 开始下载音频...');
-    const response = await fetch(playUrl, {
-      headers: {
-        'Referer': 'https://y.qq.com/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/105.0.0.0 Safari/537.36',
-        'Cookie': qqMusic.cookie
-      },
-      redirect: 'follow'
-    });
-
-    console.log('[download] 响应状态:', response.status);
-    
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '无法获取错误详情');
-      console.error('[download] 失败:', response.status, errorText.substring(0, 500));
-      return res.status(500).json({ 
-        error: `获取音频失败: ${response.status}`,
-        details: errorText.substring(0, 500)
-      });
-    }
-
+    // 云函数环境：返回直链，前端处理下载（POST 请求不适合 302）
     const safeFilename = filename || `${song.name} - ${song.artist}.mp3`;
-    const encodedFilename = encodeURIComponent(safeFilename);
-    const asciiFilename = safeFilename.replace(/[^\x20-\x7E]/g, '_');
-    res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
-    
-    const contentLength = response.headers.get('content-length');
-    if (contentLength) {
-      res.setHeader('Content-Length', contentLength);
-    }
-
-    console.log('[download] 开始流式传输...');
-    
-    const reader = response.body.getReader();
-    let totalBytes = 0;
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      totalBytes += value.length;
-      res.write(Buffer.from(value));
-    }
-    console.log('[download] 传输完成, 总字节数:', totalBytes);
-    res.end();
+    res.json({ 
+      code: 0, 
+      data: { 
+        url: playUrl, 
+        filename: safeFilename 
+      } 
+    });
   } catch (error) {
     console.error('[download] 错误:', error);
-    res.status(500).json({ error: error.message, stack: error.stack });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -506,41 +471,9 @@ app.get('/download', async (req, res) => {
       targetUrl = url;
     }
     
-    // 优先使用有效的服务端 Cookie
-    const serverCookie = serverCookieStatus.isValid ? getServerCookie() : '';
-    const clientCookie = req.headers['x-qqmusic-cookie'] || '';
-    const cookie = serverCookie || clientCookie;
-
-    const response = await fetch(targetUrl, {
-      headers: {
-        'Referer': 'https://y.qq.com/',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-        'Cookie': cookie
-      },
-      redirect: 'follow'
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => '无法获取错误详情');
-      return res.status(500).json({ 
-        error: `获取音频失败: ${response.status}`,
-        details: errorText.substring(0, 500)
-      });
-    }
-
-    const safeFilename = filename || 'download.mp3';
-    const encodedFilename = encodeURIComponent(safeFilename);
-    const asciiFilename = safeFilename.replace(/[^\x20-\x7E]/g, '_');
-    res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
-    res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
-    
-    const reader = response.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(Buffer.from(value));
-    }
-    res.end();
+    // 云函数环境：302 重定向，避免 6MB 限制
+    console.log('[download proxy] 云函数环境，使用 302 重定向');
+    return res.redirect(targetUrl);
   } catch (error) {
     console.error('[download proxy] 错误:', error);
     res.status(500).json({ error: error.message });

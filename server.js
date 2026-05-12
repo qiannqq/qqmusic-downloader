@@ -11,6 +11,18 @@ const dev = process.env.NODE_ENV !== 'production';
 const PORT = process.env.PORT || 3000;
 const QM_COOKIES = process.env.QM_COOKIES || '';
 
+// 检测是否运行在云函数/Serverless 环境
+function isFunctionEnv() {
+  return !!(
+    process.env.VERCEL ||
+    process.env.NETLIFY ||
+    process.env.CF_PAGES ||
+    process.env.AWS_LAMBDA_FUNCTION_NAME ||
+    process.env.FUNCTION_ENV ||
+    process.env.EDGEONE
+  );
+}
+
 // 服务端 Cookie 验证状态
 let serverCookieStatus = {
   hasCookie: false,
@@ -233,7 +245,7 @@ server.post('/api/parse-url', async (req, res) => {
 server.post('/api/song/download', async (req, res) => {
   try {
     const { song, filename } = req.body;
-    console.log('[下载] 收到请求, mid:', song?.mid, '文件名:', filename);
+    console.log('[下载] 收到请求, mid:', song?.mid, '文件名:', filename, '环境:', isFunctionEnv() ? '云函数' : '自部署');
     
     if (!song || !song.mid) {
       return res.status(400).json({ error: 'song.mid 不能为空' });
@@ -250,8 +262,14 @@ server.post('/api/song/download', async (req, res) => {
     
     console.log('[下载] 获取到 URL:', playUrl.substring(0, 200));
     
-    // 下载音频文件
-    console.log('[下载] 开始下载音频...');
+    // 云函数环境：302 重定向，避免 6MB 限制
+    if (isFunctionEnv()) {
+      console.log('[下载] 云函数环境，使用 302 重定向');
+      return res.redirect(playUrl);
+    }
+    
+    // 自部署环境：流式传输
+    console.log('[下载] 自部署环境，开始流式传输...');
     const response = await fetch(playUrl, {
       headers: {
         'Referer': 'https://y.qq.com/',
@@ -274,7 +292,6 @@ server.post('/api/song/download', async (req, res) => {
 
     const safeFilename = filename || `${song.name} - ${song.artist}.mp3`;
     const encodedFilename = encodeURIComponent(safeFilename);
-    // filename parameter must be ASCII only, use filename* for UTF-8
     const asciiFilename = safeFilename.replace(/[^\x20-\x7E]/g, '_');
     res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
     res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
@@ -283,10 +300,7 @@ server.post('/api/song/download', async (req, res) => {
     if (contentLength) {
       res.setHeader('Content-Length', contentLength);
     }
-
-    console.log('[下载] 开始流式传输...');
     
-    // 流式传输
     const reader = response.body.getReader();
     let totalBytes = 0;
     while (true) {
@@ -299,7 +313,7 @@ server.post('/api/song/download', async (req, res) => {
     res.end();
   } catch (error) {
     console.error('[下载] 错误:', error);
-    res.status(500).json({ error: error.message, stack: error.stack });
+    res.status(500).json({ error: error.message });
   }
 });
 
@@ -336,7 +350,7 @@ server.get('/api/proxy/image', async (req, res) => {
   }
 });
 
-// 音频代理接口（用于试听）- 使用 302 重定向避免云函数 6MB 限制
+// 音频代理接口（用于试听）
 server.get('/api/proxy/audio', async (req, res) => {
   try {
     const { url } = req.query;
@@ -345,15 +359,21 @@ server.get('/api/proxy/audio', async (req, res) => {
     }
 
     const targetUrl = decodeURIComponent(url);
-    console.log('[音频代理] 代理URL:', targetUrl.substring(0, 150));
+    console.log('[音频代理] 代理URL:', targetUrl.substring(0, 150), '环境:', isFunctionEnv() ? '云函数' : '自部署');
 
     // 优先使用有效的服务端 Cookie
     const cookie = (serverCookieStatus.isValid ? QM_COOKIES : '') || req.headers['x-qqmusic-cookie'] || '';
 
-    // 使用 HEAD 请求验证音频 URL 是否有效
-    console.log('[音频代理] 验证音频 URL...');
+    // 云函数环境：302 重定向，避免 6MB 限制
+    if (isFunctionEnv()) {
+      console.log('[音频代理] 云函数环境，使用 302 重定向');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      return res.redirect(targetUrl);
+    }
+
+    // 自部署环境：流式传输
+    console.log('[音频代理] 自部署环境，开始流式传输...');
     const response = await fetch(targetUrl, {
-      method: 'HEAD',
       headers: {
         'Referer': 'https://y.qq.com/',
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -363,16 +383,41 @@ server.get('/api/proxy/audio', async (req, res) => {
     });
 
     if (!response.ok) {
-      console.error('[音频代理] URL 验证失败:', response.status);
+      console.error('[音频代理] 下载失败:', response.status);
       return res.status(response.status).send('获取音频失败');
     }
 
+    const contentType = response.headers.get('content-type') || 'audio/mpeg';
     const contentLength = response.headers.get('content-length');
-    console.log('[音频代理] URL 验证通过, Content-Length:', contentLength);
+    
+    console.log('[音频代理] Content-Type:', contentType);
+    console.log('[音频代理] Content-Length:', contentLength);
 
-    // 302 重定向到原始 URL，避免云函数 6MB 限制
+    // 如果内容太小，可能是错误响应
+    if (contentLength && parseInt(contentLength) < 1000) {
+      console.log('[音频代理] 警告: 文件过小，可能不是有效音频');
+      const text = await response.text();
+      console.log('[音频代理] 响应内容:', text.substring(0, 200));
+      return res.status(500).send('音频文件无效');
+    }
+
+    // 设置响应头
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Accept-Ranges', 'none');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    return res.redirect(targetUrl);
+    if (contentLength) {
+      res.setHeader('Content-Length', contentLength);
+    }
+
+    // 流式传输音频数据
+    const reader = response.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(Buffer.from(value));
+    }
+    res.end();
+    console.log('[音频代理] 传输完成');
 
   } catch (error) {
     console.error('[音频代理] 错误:', error);
@@ -381,10 +426,11 @@ server.get('/api/proxy/audio', async (req, res) => {
 });
 
 // 旧版下载代理（兼容）
+// 旧版下载代理（兼容）
 server.get('/api/download', async (req, res) => {
   try {
     const { url, filename } = req.query;
-    console.log('[下载代理-旧版] 收到请求, URL:', url);
+    console.log('[下载代理-旧版] 收到请求, URL:', url, '环境:', isFunctionEnv() ? '云函数' : '自部署');
     
     if (!url) {
       return res.status(400).json({ error: 'url 不能为空' });
@@ -397,6 +443,14 @@ server.get('/api/download', async (req, res) => {
       targetUrl = url;
     }
     
+    // 云函数环境：302 重定向，避免 6MB 限制
+    if (isFunctionEnv()) {
+      console.log('[下载代理] 云函数环境，使用 302 重定向');
+      return res.redirect(targetUrl);
+    }
+    
+    // 自部署环境：流式传输
+    console.log('[下载代理] 自部署环境，开始流式传输...');
     // 优先使用有效的服务端 Cookie
     const cookie = (serverCookieStatus.isValid ? QM_COOKIES : '') || req.headers['x-qqmusic-cookie'] || '';
     
@@ -419,7 +473,6 @@ server.get('/api/download', async (req, res) => {
 
     const safeFilename = filename || 'download.mp3';
     const encodedFilename = encodeURIComponent(safeFilename);
-    // filename parameter must be ASCII only, use filename* for UTF-8
     const asciiFilename = safeFilename.replace(/[^\x20-\x7E]/g, '_');
     res.setHeader('Content-Disposition', `attachment; filename="${asciiFilename}"; filename*=UTF-8''${encodedFilename}`);
     res.setHeader('Content-Type', response.headers.get('content-type') || 'audio/mpeg');
