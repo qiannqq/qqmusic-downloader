@@ -100,7 +100,6 @@ export default function QQMusicDownloader() {
     <div ref={containerRef}>
       <CustomCursor />
       <div className="noise-overlay" />
-      <div className="scan-line" />
 
       {/* Top Bar with Search */}
       <header className="top-bar">
@@ -116,7 +115,7 @@ export default function QQMusicDownloader() {
           }}
           title="返回主页"
         >
-          MUSIC
+          M
         </div>
         
         <div className="top-bar-search">

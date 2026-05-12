@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node server.js",
+    "dev:client": "next dev",
     "build": "next build",
     "build:cf": "next build",
     "start": "next start",

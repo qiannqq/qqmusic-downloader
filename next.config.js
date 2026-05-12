@@ -7,6 +7,7 @@ const nextConfig = {
   // Cloud Functions 静态导出配置
   output: 'export',
   trailingSlash: true,
+  skipTrailingSlashRedirect: true,
   distDir: 'dist'
 };
 

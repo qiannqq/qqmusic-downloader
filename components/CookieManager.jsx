@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Check, X, HelpCircle, Save, Trash2, AlertCircle, Loader2, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Check, X, HelpCircle, Save, Trash2, AlertCircle, Loader2, ShieldCheck, ShieldAlert, Eye, EyeOff } from 'lucide-react';
 import { verifyCookie } from '../lib/api';
 
 export default function CookieManager({ highQuality, onHighQualityChange, serverCookieStatus }) {
@@ -13,6 +13,7 @@ export default function CookieManager({ highQuality, onHighQualityChange, server
   const [verifyError, setVerifyError] = useState('');
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
+  const [showCookie, setShowCookie] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('qqmusic_cookie');
@@ -232,13 +233,67 @@ export default function CookieManager({ highQuality, onHighQualityChange, server
               style={{
                 height: '480px',
                 borderColor: verifyStatus === 'error' ? 'var(--accent)' : verifyStatus === 'success' ? 'var(--accent-2)' : undefined,
-                boxShadow: verifyStatus === 'error' ? '4px 4px 0 rgba(255, 42, 109, 0.3)' : verifyStatus === 'success' ? '4px 4px 0 rgba(5, 217, 232, 0.3)' : undefined
+                boxShadow: verifyStatus === 'error' ? '4px 4px 0 rgba(255, 42, 109, 0.3)' : verifyStatus === 'success' ? '4px 4px 0 rgba(5, 217, 232, 0.3)' : undefined,
+                color: showCookie ? 'var(--fg)' : 'transparent',
+                caretColor: showCookie ? 'var(--fg)' : 'transparent',
               }}
             />
+            {!showCookie && cookie && (
+              <div style={{
+                position: 'absolute',
+                top: '3px',
+                left: '3px',
+                right: '3px',
+                bottom: '3px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                background: 'var(--bg-elevated)',
+                border: '3px solid var(--border)',
+                fontSize: '0.9rem',
+                color: 'var(--fg-muted)',
+                pointerEvents: 'none',
+                zIndex: 1,
+              }}>
+                <ShieldCheck size={16} />
+                Cookie 内容已隐藏
+              </div>
+            )}
+            <button
+              onClick={() => setShowCookie(!showCookie)}
+              style={{
+                position: 'absolute',
+                top: '12px',
+                right: cookie ? '12px' : '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                background: 'var(--bg)',
+                border: '2px solid var(--border)',
+                color: 'var(--fg-muted)',
+                cursor: 'none',
+                zIndex: 2,
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = 'var(--accent)';
+                e.currentTarget.style.color = 'var(--fg)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = 'var(--border)';
+                e.currentTarget.style.color = 'var(--fg-muted)';
+              }}
+              title={showCookie ? '隐藏 Cookie' : '显示 Cookie'}
+            >
+              {showCookie ? <EyeOff size={16} /> : <Eye size={16} />}
+            </button>
             {isSaved && (
               <div style={{
                 position: 'absolute',
-                top: '12px',
+                top: '52px',
                 right: '12px',
                 display: 'flex',
                 alignItems: 'center',
@@ -250,7 +305,8 @@ export default function CookieManager({ highQuality, onHighQualityChange, server
                 fontWeight: 800,
                 textTransform: 'uppercase',
                 letterSpacing: '1px',
-                border: '2px solid #000'
+                border: '2px solid #000',
+                zIndex: 2,
               }}>
                 <Check size={12} />
                 已保存

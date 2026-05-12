@@ -127,37 +127,22 @@ export default function SearchResults({ results, onAddToList, songs, onDownload,
                 </div>
               )}
               
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ 
-                  fontSize: '1rem', 
-                  fontWeight: 700, 
-                  marginBottom: '4px',
-                  overflow: 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap'
-                }}>{song.name}</div>
-                <div style={{ color: 'var(--fg-muted)', fontSize: '0.8rem', marginBottom: '8px' }}>{song.artist}</div>
+              <div className="result-info">
+                <div className="result-name">{song.name}</div>
+                <div className="result-artist">{song.artist}</div>
                 <a 
                   href={song.link} 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  style={{ 
-                    color: 'var(--accent-2)', 
-                    fontSize: '0.7rem', 
-                    textDecoration: 'none',
-                    textTransform: 'uppercase',
-                    letterSpacing: '1px',
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
+                  className="result-link"
                 >
-                  在QQ音乐打开 <ExternalLink size={10} />
+                  <ExternalLink size={10} />
+                  <span className="result-link-text">QQ音乐</span>
                 </a>
               </div>
             </div>
             
-            <div style={{ display: 'flex', gap: '8px' }}>
+            <div className="result-actions">
               <button 
                 className="btn-play"
                 onClick={() => handlePreview(song)}

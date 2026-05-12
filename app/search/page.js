@@ -99,7 +99,7 @@ export default function SearchPage() {
         <h1 className="page-title">搜索音乐</h1>
       </div>
 
-      <form onSubmit={handleSearch} className="header-search-form" style={{ maxWidth: '700px', margin: '0 auto 32px' }}>
+      <form onSubmit={handleSearch} className="header-search-form page-search-form">
         <Search size={16} className="header-search-icon" />
         <input
           type="text"

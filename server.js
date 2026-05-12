@@ -425,6 +425,19 @@ server.get('/api/proxy/audio', async (req, res) => {
   }
 });
 
+// Cookie 状态接口（不暴露 Cookie 值）
+server.get('/api/cookie-status', (req, res) => {
+  res.json({
+    code: 0,
+    data: {
+      hasServerCookie: serverCookieStatus.hasCookie,
+      isValid: serverCookieStatus.isValid,
+      // 如果服务端 Cookie 有效，前端不需要填写
+      needClientCookie: !serverCookieStatus.isValid
+    }
+  });
+});
+
 // 旧版下载代理（兼容）
 // 旧版下载代理（兼容）
 server.get('/api/download', async (req, res) => {
@@ -493,19 +506,6 @@ server.get('/api/download', async (req, res) => {
 // 所有非 API 请求交给 Next.js 处理
 server.use((req, res) => {
   return handle(req, res);
-});
-
-// Cookie 状态接口（不暴露 Cookie 值）
-server.get('/api/cookie-status', (req, res) => {
-  res.json({
-    code: 0,
-    data: {
-      hasServerCookie: serverCookieStatus.hasCookie,
-      isValid: serverCookieStatus.isValid,
-      // 如果服务端 Cookie 有效，前端不需要填写
-      needClientCookie: !serverCookieStatus.isValid
-    }
-  });
 });
 
 app.prepare().then(async () => {
