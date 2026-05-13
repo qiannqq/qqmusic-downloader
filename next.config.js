@@ -5,7 +5,7 @@ const nextConfig = {
   },
   allowedDevOrigins: ['127.0.0.1'],
   // Cloud Functions 静态导出配置
-  output: 'export',
+//  output: 'export',
   trailingSlash: true,
   skipTrailingSlashRedirect: true,
   distDir: 'dist'

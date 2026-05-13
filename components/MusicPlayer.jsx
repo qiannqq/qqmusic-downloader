@@ -7,6 +7,7 @@ import { getProxyImageUrl, getProxyAudioUrl } from '../lib/api';
 export default function MusicPlayer({ currentSong, onClose }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [error, setError] = useState(null);
@@ -19,9 +20,10 @@ export default function MusicPlayer({ currentSong, onClose }) {
       audioRef.current.load();
       setIsPlaying(false);
       setProgress(0);
+      setCurrentTime(0);
+      setDuration(0);
       setError(null);
       
-      // Auto play after load
       setTimeout(() => {
         if (audioRef.current) {
           audioRef.current.play().then(() => {
@@ -34,43 +36,31 @@ export default function MusicPlayer({ currentSong, onClose }) {
     }
   }, [currentSong]);
 
-  useEffect(() => {
+  const handleTimeUpdate = () => {
     const audio = audioRef.current;
-    if (!audio) return;
+    if (audio && audio.duration && isFinite(audio.duration)) {
+      setProgress((audio.currentTime / audio.duration) * 100);
+      setCurrentTime(audio.currentTime);
+    }
+  };
 
-    const handleTimeUpdate = () => {
-      if (audio.duration) {
-        setProgress((audio.currentTime / audio.duration) * 100);
-      }
-    };
-
-    const handleLoadedMetadata = () => {
+  const handleLoadedMetadata = () => {
+    const audio = audioRef.current;
+    if (audio && audio.duration && isFinite(audio.duration)) {
       setDuration(audio.duration);
-    };
+    }
+  };
 
-    const handleError = (e) => {
-      console.error('Audio error:', e);
-      setError('音频加载失败，可能需要登录或该歌曲暂不支持试听');
-      setIsPlaying(false);
-    };
+  const handleError = () => {
+    setError('音频加载失败，可能需要登录或该歌曲暂不支持试听');
+    setIsPlaying(false);
+  };
 
-    const handleEnded = () => {
-      setIsPlaying(false);
-      setProgress(0);
-    };
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('ended', handleEnded);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('ended', handleEnded);
-    };
-  }, []);
+  const handleEnded = () => {
+    setIsPlaying(false);
+    setProgress(0);
+    setCurrentTime(0);
+  };
 
   const togglePlay = () => {
     if (audioRef.current) {
@@ -98,7 +88,7 @@ export default function MusicPlayer({ currentSong, onClose }) {
   };
 
   const formatTime = (time) => {
-    if (!time || isNaN(time)) return '0:00';
+    if (!time || !isFinite(time) || isNaN(time)) return '0:00';
     const mins = Math.floor(time / 60);
     const secs = Math.floor(time % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -108,7 +98,13 @@ export default function MusicPlayer({ currentSong, onClose }) {
 
   return (
     <>
-      <audio ref={audioRef} crossOrigin="anonymous" />
+      <audio
+        ref={audioRef}
+        onTimeUpdate={handleTimeUpdate}
+        onLoadedMetadata={handleLoadedMetadata}
+        onError={handleError}
+        onEnded={handleEnded}
+      />
       <div className="player-bar">
         <div className="player-info">
           {currentSong.pic ? (
@@ -152,7 +148,7 @@ export default function MusicPlayer({ currentSong, onClose }) {
           </div>
           
           <div className="player-time">
-            {formatTime(audioRef.current?.currentTime || 0)} / {formatTime(duration)}
+            {formatTime(currentTime)} / {formatTime(duration)}
           </div>
         </div>
 

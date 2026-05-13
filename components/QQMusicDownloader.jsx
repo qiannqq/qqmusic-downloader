@@ -12,6 +12,7 @@ import MusicPlayer from './MusicPlayer';
 import CookieManager from './CookieManager';
 import SearchResults from './SearchResults';
 import SongList from './SongList';
+import ToastContainer, { showToast } from './Toast';
 import { useHoverScale } from '../hooks/useHoverScale';
 import { useApp } from './AppContext';
 
@@ -67,13 +68,19 @@ export default function QQMusicDownloader() {
 
   const handleImport = (importedSongs, source) => {
     const newSongs = [...songs];
+    let importCount = 0;
     importedSongs.forEach(song => {
       if (!newSongs.find(s => s.mid === song.mid)) {
         newSongs.push(song);
+        importCount++;
       }
     });
     setSongs(newSongs);
     setHasSearched(true);
+    
+    if (importCount > 0) {
+      showToast(`成功导入 ${importCount} 首歌曲`, 'success');
+    }
   };
 
   const incrementDownload = () => {
@@ -84,8 +91,22 @@ export default function QQMusicDownloader() {
     });
   };
 
-  const handlePlay = (song) => {
-    setCurrentSong(song);
+  const handlePlay = async (song) => {
+    if (song.url) {
+      setCurrentSong(song);
+      return;
+    }
+    try {
+      const { api } = await import('../lib/api');
+      const res = await api.getSongUrl(song.mid, true, song);
+      if (res.data?.url) {
+        setCurrentSong({ ...song, url: res.data.url });
+      } else {
+        showToast('无法获取播放链接，可能需要登录', 'error');
+      }
+    } catch (err) {
+      showToast('播放失败: ' + err.message, 'error');
+    }
   };
 
   const handlePageChange = async (newPage) => {
@@ -99,10 +120,10 @@ export default function QQMusicDownloader() {
         setSearchResults(newResults);
         setCurrentPage(newPage);
       } else {
-        alert('已经是最后一页了');
+        showToast('已经是最后一页了', 'info');
       }
     } catch (error) {
-      alert('加载失败: ' + error.message);
+      showToast('加载失败: ' + error.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -112,6 +133,7 @@ export default function QQMusicDownloader() {
     <div ref={containerRef}>
       <CustomCursor />
       <div className="noise-overlay" />
+      <ToastContainer />
 
       {/* Top Bar with Search */}
       <header className="top-bar">
@@ -199,9 +221,9 @@ export default function QQMusicDownloader() {
         </nav>
       </header>
 
-      <div className="main-content">
-        {/* Hero - hidden after search */}
-        {!hasSearched && (
+      <div className="main-content" style={currentSong ? { paddingBottom: '90px' } : undefined}>
+        {/* Hero - 仅在无搜索结果且无导入歌曲时显示 */}
+        {!hasSearched && songs.length === 0 && (
           <section className="hero">
             <div className="hero-content">
               <h1 className="hero-title">
@@ -226,6 +248,44 @@ export default function QQMusicDownloader() {
             loading={loading}
           />
         </section>
+
+        {/* 导入歌曲列表（当有歌曲但无搜索结果时显示） */}
+        {songs.length > 0 && searchResults.length === 0 && !loading && (
+          <section className="imported-songs">
+            <div className="section-header">
+              <h2 className="section-title">已导入的歌曲</h2>
+              <span className="section-count">{songs.length}</span>
+            </div>
+            <div className="results-grid">
+              {songs.map((song, index) => (
+                <div key={song.mid || index} className="result-cell">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    {song.pic && (
+                      <img 
+                        src={song.pic} 
+                        alt={song.name}
+                        style={{ width: '48px', height: '48px', objectFit: 'cover', border: '2px solid var(--border)' }}
+                      />
+                    )}
+                    <div className="result-info">
+                      <div className="result-name">{song.name}</div>
+                      <div className="result-artist">{song.artist}</div>
+                    </div>
+                    <div className="result-actions">
+                      <button 
+                        className="btn-play"
+                        onClick={() => handlePlay(song)}
+                        title="播放"
+                      >
+                        <Play size={16} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* Loading */}
         {loading && (
@@ -284,10 +344,30 @@ export default function QQMusicDownloader() {
 function SearchBar({ keyword, setKeyword, onSearch, onImport, onLoading }) {
   const [loading, setLoading] = useState(false);
 
-  const isPlaylistUrl = (url) => /playlist\/(\d+)/.test(url) || /y\.qq\.com.*playlist/.test(url);
-  const isSongUrl = (url) => /song\/(\w+)/.test(url) || /y\.qq\.com.*song/.test(url);
-  const extractPlaylistId = (url) => { const m = url.match(/playlist\/(\d+)/); return m ? m[1] : null; };
-  const extractSongId = (url) => { const m = url.match(/song\/(\w+)/); return m ? m[1] : null; };
+  const isPlaylistUrl = (url) => {
+    return /playlist\/(\d+)/.test(url) || 
+           /y\.qq\.com.*playlist/.test(url) ||
+           /[?&]id=\d+/.test(url) ||
+           /^\d+$/.test(url.trim());
+  };
+  
+  const isSongUrl = (url) => {
+    return /song\/(\w+)/.test(url) || /y\.qq\.com.*song/.test(url);
+  };
+  
+  const extractPlaylistId = (url) => {
+    let m = url.match(/playlist\/(\d+)/);
+    if (m) return m[1];
+    m = url.match(/[?&]id=(\d+)/);
+    if (m) return m[1];
+    if (/^\d+$/.test(url.trim())) return url.trim();
+    return null;
+  };
+  
+  const extractSongId = (url) => {
+    const m = url.match(/song\/(\w+)/);
+    return m ? m[1] : null;
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -301,26 +381,26 @@ function SearchBar({ keyword, setKeyword, onSearch, onImport, onLoading }) {
       const { api } = await import('../lib/api');
       if (isPlaylistUrl(input)) {
         const id = extractPlaylistId(input);
-        if (!id) { alert('无法识别的歌单链接格式'); return; }
+        if (!id) { showToast('无法识别的歌单链接格式', 'error'); return; }
         const res = await api.getPlaylist(id);
         if (res.data?.list?.length > 0) {
           onImport?.(res.data.list, `歌单: ${res.data.name || ''}`);
           onSearch?.([]);
-        } else { alert('歌单为空或获取失败'); }
+        } else { showToast('歌单为空或获取失败', 'error'); }
       } else if (isSongUrl(input)) {
         const id = extractSongId(input);
-        if (!id) { alert('无法识别的歌曲链接格式'); return; }
+        if (!id) { showToast('无法识别的歌曲链接格式', 'error'); return; }
         const res = await api.getSongDetail(id);
         if (res.data) {
           onImport?.([res.data], `单曲: ${res.data.name || ''}`);
           onSearch?.([]);
-        } else { alert('歌曲不存在'); }
+        } else { showToast('歌曲不存在', 'error'); }
       } else {
         const res = await api.search(input);
         onSearch?.(res.data || [], input, 1);
       }
     } catch (error) {
-      alert('操作失败: ' + error.message);
+      showToast('操作失败: ' + error.message, 'error');
     } finally {
       setLoading(false);
       onLoading?.(false);
@@ -334,7 +414,7 @@ function SearchBar({ keyword, setKeyword, onSearch, onImport, onLoading }) {
         type="text"
         value={keyword}
         onChange={(e) => setKeyword(e.target.value)}
-        placeholder="搜索歌曲、歌手、专辑..."
+        placeholder="搜索歌曲、歌手、专辑 或 粘贴歌单链接"
         disabled={loading}
         className="header-search-input"
       />

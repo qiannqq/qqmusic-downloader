@@ -7,10 +7,36 @@ export default function SearchBar({ onSearch, onImport, onLoading }) {
   const [keyword, setKeyword] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const isPlaylistUrl = (url) => /playlist\/(\d+)/.test(url) || /y\.qq\.com.*playlist/.test(url);
-  const isSongUrl = (url) => /song\/(\w+)/.test(url) || /y\.qq\.com.*song/.test(url);
-  const extractPlaylistId = (url) => { const m = url.match(/playlist\/(\d+)/); return m ? m[1] : null; };
-  const extractSongId = (url) => { const m = url.match(/song\/(\w+)/); return m ? m[1] : null; };
+  const isPlaylistUrl = (url) => {
+    return /playlist\/(\d+)/.test(url) || 
+           /y\.qq\.com.*playlist/.test(url) ||
+           /[?&]id=\d+/.test(url) ||
+           /^\d+$/.test(url.trim());
+  };
+  
+  const isSongUrl = (url) => {
+    return /song\/(\w+)/.test(url) || /y\.qq\.com.*song/.test(url);
+  };
+  
+  const extractPlaylistId = (url) => {
+    // 格式1: playlist/1234567890 或 playlist/1234567890.html
+    let m = url.match(/playlist\/(\d+)/);
+    if (m) return m[1];
+    
+    // 格式2: ?id=1234567890 或 &id=1234567890
+    m = url.match(/[?&]id=(\d+)/);
+    if (m) return m[1];
+    
+    // 格式3: 纯数字
+    if (/^\d+$/.test(url.trim())) return url.trim();
+    
+    return null;
+  };
+  
+  const extractSongId = (url) => {
+    const m = url.match(/song\/(\w+)/);
+    return m ? m[1] : null;
+  };
 
   const handleSearch = async (e) => {
     e.preventDefault();
@@ -56,7 +82,7 @@ export default function SearchBar({ onSearch, onImport, onLoading }) {
           type="text"
           value={keyword}
           onChange={(e) => setKeyword(e.target.value)}
-          placeholder="输入歌曲名、歌手、专辑，或粘贴 QQ音乐链接..."
+          placeholder="搜索歌曲、歌手、专辑 或 粘贴歌单链接"
           disabled={loading}
           className="search-input"
         />

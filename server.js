@@ -171,15 +171,17 @@ server.get('/api/playlist', async (req, res) => {
     const body = {
       comm: { uin: '0', authst: '', ct: 29 },
       req_0: {
-        method: 'GetPlaylistById',
-        module: 'music.srfDissInfo.aiDissInfo',
+        module: 'srf_diss_info.DissInfoServer',
+        method: 'CgiGetDiss',
         param: {
           disstid: Number(id),
           dirid: 0,
-          tag: 0,
+          onlysonglist: 0,
           song_begin: 0,
-          song_num: 100,
-          userinfo: 1
+          song_num: 500,
+          userinfo: 1,
+          pic_dpi: 800,
+          orderlist: 1
         }
       }
     };
@@ -224,19 +226,60 @@ server.post('/api/parse-url', async (req, res) => {
       return res.status(400).json({ error: 'URL 不能为空' });
     }
     
-    const songMatch = url.match(/song\/(\w+)\.html/);
-    const playlistMatch = url.match(/playlist\/(\d+)\.html/);
-    const albumMatch = url.match(/album\/(\w+)\.html/);
+    const trimmedUrl = url.trim();
     
-    if (songMatch) {
-      res.json({ code: 0, data: { type: 'song', id: songMatch[1] } });
-    } else if (playlistMatch) {
-      res.json({ code: 0, data: { type: 'playlist', id: playlistMatch[1] } });
-    } else if (albumMatch) {
-      res.json({ code: 0, data: { type: 'album', id: albumMatch[1] } });
-    } else {
-      res.status(400).json({ error: '无法识别的 URL 格式' });
+    // 支持多种URL格式
+    // 格式1: https://y.qq.com/n/ryqq/playlist/1234567890
+    // 格式2: https://i2.y.qq.com/n3/other/pages/details/playlist.html?id=1234567890
+    // 格式3: playlist/1234567890.html
+    const playlistPatterns = [
+      /playlist\/(\d+)/,                                    // playlist/1234567890 或 playlist/1234567890.html
+      /[?&]id=(\d+)/,                                       // ?id=1234567890 或 &id=1234567890
+    ];
+    
+    // 格式1: https://y.qq.com/n/yqq/song/003aCYLn3L8H17
+    // 格式2: song/003aCYLn3L8H17.html
+    const songPatterns = [
+      /song\/(\w+)\.html/,                                  // song/xxx.html
+      /song\/(\w+)$/,                                       // song/xxx (无.html)
+    ];
+    
+    // 专辑格式
+    const albumPatterns = [
+      /album\/(\w+)\.html/,
+      /album\/(\w+)$/,
+    ];
+    
+    // 尝试匹配歌单
+    for (const pattern of playlistPatterns) {
+      const match = trimmedUrl.match(pattern);
+      if (match && match[1]) {
+        return res.json({ code: 0, data: { type: 'playlist', id: match[1] } });
+      }
     }
+    
+    // 尝试匹配歌曲
+    for (const pattern of songPatterns) {
+      const match = trimmedUrl.match(pattern);
+      if (match && match[1]) {
+        return res.json({ code: 0, data: { type: 'song', id: match[1] } });
+      }
+    }
+    
+    // 尝试匹配专辑
+    for (const pattern of albumPatterns) {
+      const match = trimmedUrl.match(pattern);
+      if (match && match[1]) {
+        return res.json({ code: 0, data: { type: 'album', id: match[1] } });
+      }
+    }
+    
+    // 纯数字视为歌单ID
+    if (/^\d+$/.test(trimmedUrl)) {
+      return res.json({ code: 0, data: { type: 'playlist', id: trimmedUrl } });
+    }
+    
+    res.status(400).json({ error: '无法识别的 URL 格式' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

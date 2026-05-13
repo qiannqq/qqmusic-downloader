@@ -19,32 +19,61 @@ export default function ImportModal({ onImport, onClose }) {
     setError('');
 
     try {
+      const trimmedUrl = url.trim();
+      
       if (activeTab === 'playlist') {
-        const match = url.match(/playlist\/(\d+)/);
-        if (!match) {
-          const parseRes = await api.parseUrl(url.trim());
+        // 支持多种歌单链接格式
+        // 格式1: playlist/1234567890 或 playlist/1234567890.html
+        // 格式2: ?id=1234567890 或 &id=1234567890
+        // 格式3: 纯数字ID
+        let playlistId = null;
+        
+        let match = trimmedUrl.match(/playlist\/(\d+)/);
+        if (match) {
+          playlistId = match[1];
+        }
+        
+        if (!playlistId) {
+          match = trimmedUrl.match(/[?&]id=(\d+)/);
+          if (match) {
+            playlistId = match[1];
+          }
+        }
+        
+        if (!playlistId && /^\d+$/.test(trimmedUrl)) {
+          playlistId = trimmedUrl;
+        }
+        
+        if (!playlistId) {
+          // 尝试调用parse-url API
+          const parseRes = await api.parseUrl(trimmedUrl);
           if (parseRes.data.type !== 'playlist') {
             throw new Error('无法识别的歌单链接');
           }
-          const res = await api.getPlaylist(parseRes.data.id);
-          onImport(res.data.list || [], `歌单: ${res.data.name || ''}`);
-        } else {
-          const res = await api.getPlaylist(match[1]);
-          onImport(res.data.list || [], `歌单: ${res.data.name || ''}`);
+          playlistId = parseRes.data.id;
         }
+        
+        const res = await api.getPlaylist(playlistId);
+        onImport(res.data.list || [], `歌单: ${res.data.name || ''}`);
+        
       } else if (activeTab === 'song') {
-        const match = url.match(/song\/(\w+)/);
-        if (!match) {
-          const parseRes = await api.parseUrl(url.trim());
+        let songId = null;
+        
+        let match = trimmedUrl.match(/song\/(\w+)/);
+        if (match) {
+          songId = match[1];
+        }
+        
+        if (!songId) {
+          const parseRes = await api.parseUrl(trimmedUrl);
           if (parseRes.data.type !== 'song') {
             throw new Error('无法识别的单曲链接');
           }
-          const res = await api.getSongDetail(parseRes.data.id);
-          onImport([res.data], `单曲: ${res.data.name || ''}`);
-        } else {
-          const res = await api.getSongDetail(match[1]);
-          onImport([res.data], `单曲: ${res.data.name || ''}`);
+          songId = parseRes.data.id;
         }
+        
+        const res = await api.getSongDetail(songId);
+        onImport([res.data], `单曲: ${res.data.name || ''}`);
       }
       onClose();
     } catch (err) {
