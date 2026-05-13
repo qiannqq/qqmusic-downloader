@@ -555,9 +555,20 @@ app.prepare().then(async () => {
   // 启动时验证服务端 Cookie
   await validateServerCookie();
 
-  server.listen(PORT, (err) => {
+  const httpServer = server.listen(PORT, (err) => {
     if (err) throw err;
     console.log(`> Ready on http://localhost:${PORT}`);
     console.log(`> ${dev ? '开发' : '生产'}模式`);
   });
+
+  // 优雅退出
+  let shuttingDown = false;
+  const shutdown = () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    console.log('\n> 正在关闭服务...');
+    process.exit(0);
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 });
