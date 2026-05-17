@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { 
   Play, Pause, Download, Plus, Check, Loader2, 
-  Music, ExternalLink, Headphones, ChevronLeft, ChevronRight
+  Music, ExternalLink, Headphones, ChevronLeft, ChevronRight, Zap
 } from 'lucide-react';
 import { api, downloadSong, getProxyImageUrl } from '../lib/api';
 
@@ -29,6 +29,8 @@ function showDownloadError(message, song) {
 export default function SearchResults({ results, onAddToList, songs, onDownload, onPlay, searchKeyword, currentPage, onPageChange, loading }) {
   const [adding, setAdding] = useState({});
   const [previewing, setPreviewing] = useState(null);
+  const [batchLoading, setBatchLoading] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(0);
 
   const isAdded = (mid) => songs.some(s => s.mid === mid);
 
@@ -41,6 +43,58 @@ export default function SearchResults({ results, onAddToList, songs, onDownload,
 
   const handleAddAll = () => {
     results.forEach(song => { if (!isAdded(song.mid)) onAddToList(song); });
+  };
+
+  const handleBatchDownload = async () => {
+    if (results.length === 0) return;
+    
+    // 先将所有歌曲添加到列表
+    handleAddAll();
+    
+    setBatchLoading(true);
+    setBatchProgress(0);
+
+    try {
+      const res = await api.getBatchUrls(results, true);
+      const urls = res.data;
+      
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < urls.length; i++) {
+        const item = urls[i];
+        setBatchProgress(Math.round(((i + 1) / urls.length) * 100));
+
+        if (item.url) {
+          try {
+            triggerDownload(item.url, `${item.name} - ${item.artist}.mp3`);
+            successCount++;
+            onDownload?.();
+            await new Promise(resolve => setTimeout(resolve, 800));
+          } catch (err) {
+            console.error('下载失败:', err);
+            failCount++;
+          }
+        } else {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) {
+        if (failCount > 0) {
+          alert(`成功下载 ${successCount} 首，${failCount} 首失败\n\n失败原因可能是：\n• 文件过大（云函数限制 6MB）\n• Cookie 过期或需要 VIP`);
+        } else {
+          alert(`成功下载 ${successCount} 首歌曲`);
+        }
+      } else {
+        alert('下载失败，请检查 Cookie 设置或选择其他歌曲\n\n可能原因：\n• 文件过大（云函数限制 6MB）\n• Cookie 已过期\n• 所选歌曲需要 VIP 权限');
+      }
+    } catch (err) {
+      alert('批量下载失败: ' + err.message);
+    } finally {
+      setBatchLoading(false);
+      setBatchProgress(0);
+    }
   };
 
   const handleDownload = async (song) => {
@@ -89,10 +143,18 @@ export default function SearchResults({ results, onAddToList, songs, onDownload,
           <button 
             className="btn-brutal"
             onClick={handleAddAll}
-            disabled={addedCount === results.length}
+            disabled={addedCount === results.length || batchLoading}
           >
             <Plus size={14} />
             {addedCount === results.length ? ' 已添加' : ` 全部 (${results.length - addedCount})`}
+          </button>
+          <button 
+            className="btn-brutal accent-2"
+            onClick={handleBatchDownload}
+            disabled={batchLoading}
+          >
+            {batchLoading ? <Loader2 size={14} className="spin" /> : <Zap size={14} />}
+            {batchLoading ? ` 下载中 ${batchProgress}%` : ' 全部下载'}
           </button>
         </div>
       </div>
@@ -172,6 +234,12 @@ export default function SearchResults({ results, onAddToList, songs, onDownload,
           </div>
         ))}
       </div>
+
+      {batchLoading && (
+        <div className="batch-progress" style={{ marginTop: '16px', margin: '16px 40px 0' }}>
+          <div className="batch-progress-fill" style={{ width: `${batchProgress}%` }} />
+        </div>
+      )}
 
       {/* Pagination */}
       {searchKeyword && (
