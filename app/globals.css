@@ -1155,12 +1155,13 @@ html {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
   padding: 16px;
   margin-top: 16px;
   background: var(--bg);
   border: 3px solid var(--accent);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5);
+  flex-wrap: wrap;
 }
 
 /* ========== EMPTY STATE ========== */

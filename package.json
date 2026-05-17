@@ -9,7 +9,7 @@
     "dev:client": "next dev",
     "build": "next build",
     "build:cf": "next build",
-    "start": "next start",
+    "start": "NODE_ENV=production node server.js",
     "lint": "next lint"
   },
   "dependencies": {

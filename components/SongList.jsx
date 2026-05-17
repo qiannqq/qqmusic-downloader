@@ -110,6 +110,35 @@ export default function SongList({ songs, onSongsChange, selectedSongs, onSelect
     }
   };
 
+  const handleExportMarkdown = () => {
+    const selectedSongList = selectedSongs.length > 0 
+      ? songs.filter(s => selectedSongs.includes(s.mid))
+      : songs;
+
+    let md = `# 我的歌单\n\n`;
+    md += `| # | 歌曲名 | 歌手 | 专辑 |\n`;
+    md += `|---|--------|------|------|\n`;
+    
+    selectedSongList.forEach((song, index) => {
+      const album = song.album || '-';
+      md += `| ${index + 1} | ${song.name} | ${song.artist} | ${album} |\n`;
+    });
+    
+    md += `\n---\n`;
+    md += `导出时间：${new Date().toLocaleString()}\n`;
+    md += `共 ${selectedSongList.length} 首歌曲\n`;
+
+    const blob = new Blob([md], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `歌单_${new Date().toISOString().slice(0, 10)}.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const handleBatchDownload = async () => {
     const selectedSongList = songs.filter(s => selectedSongs.includes(s.mid));
     if (selectedSongList.length === 0) {
@@ -305,6 +334,15 @@ export default function SongList({ songs, onSongsChange, selectedSongs, onSelect
             title="删除"
           >
             <Trash2 size={14} /> 删除
+          </button>
+          <button 
+            className="btn-brutal"
+            style={{ padding: '6px 12px', fontSize: '0.75rem' }}
+            onClick={handleExportMarkdown}
+            disabled={batchLoading}
+            title="导出歌单"
+          >
+            <FileText size={14} /> 导出
           </button>
           <button 
             className="btn-brutal"
